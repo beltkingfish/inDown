@@ -457,11 +457,27 @@ function hasOpenDocument() {
   }
 }
 
+/*
+ * Read element i from either a plain Array (e.g. doc.allParagraphStyles) or a
+ * DOM collection (e.g. story.paragraphs). Arrays use [i]; collections use
+ * .item(i).
+ */
+function atIndex(coll, i) {
+  try {
+    if (coll && typeof coll.item === "function") {
+      return coll.item(i);
+    }
+  } catch (e) {
+    /* fall back to bracket access */
+  }
+  return coll[i];
+}
+
 function collectNames(collection) {
   const out = [];
   try {
     for (let i = 0; i < collection.length; i++) {
-      out.push(collection.item(i).name);
+      out.push(atIndex(collection, i).name);
     }
   } catch (e) {
     /* ignore */
@@ -483,7 +499,8 @@ function resolveByName(collection, name) {
   if (!name) return null;
   try {
     for (let i = 0; i < collection.length; i++) {
-      if (collection.item(i).name === name) return collection.item(i);
+      const item = atIndex(collection, i);
+      if (item && item.name === name) return item;
     }
   } catch (e) {
     /* ignore */
@@ -1158,7 +1175,7 @@ function revealShow(story, doc, mapping) {
   const paras = story.paragraphs;
   for (let i = 0; i < paras.length; i++) {
     try {
-      const p = paras.item(i);
+      const p = atIndex(paras, i);
       const marker = paraMap[p.appliedParagraphStyle.name];
       if (marker && p.characters.length > 0) {
         edits.push({ index: p.characters.firstItem().index, text: marker });
@@ -1171,7 +1188,7 @@ function revealShow(story, doc, mapping) {
   const ranges = story.textStyleRanges;
   for (let i = 0; i < ranges.length; i++) {
     try {
-      const tsr = ranges.item(i);
+      const tsr = atIndex(ranges, i);
       const name = tsr.appliedCharacterStyle.name;
       if (name === SYNTAX_STYLE_NAME) continue;
       const marker = charMap[name];
@@ -1203,7 +1220,7 @@ function revealHide(story) {
     const ranges = story.textStyleRanges;
     for (let i = 0; i < ranges.length; i++) {
       try {
-        const tsr = ranges.item(i);
+        const tsr = atIndex(ranges, i);
         if (tsr.appliedCharacterStyle.name === SYNTAX_STYLE_NAME && tsr.characters.length > 0) {
           spans.push([tsr.characters.firstItem().index, tsr.characters.lastItem().index]);
         }
