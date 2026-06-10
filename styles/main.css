@@ -78,6 +78,39 @@ body {
   color: #e34850;
 }
 
+.tools {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--uxp-host-border-color, rgba(127, 127, 127, 0.35));
+  border-radius: var(--radius);
+}
+
+.tools-title {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+}
+
+.tools-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.switch-label {
+  opacity: 0.9;
+}
+
 .footer {
   display: flex;
   justify-content: center;

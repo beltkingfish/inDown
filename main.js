@@ -461,7 +461,7 @@ function collectNames(collection) {
   const out = [];
   try {
     for (let i = 0; i < collection.length; i++) {
-      out.push(collection[i].name);
+      out.push(collection.item(i).name);
     }
   } catch (e) {
     /* ignore */
@@ -483,7 +483,7 @@ function resolveByName(collection, name) {
   if (!name) return null;
   try {
     for (let i = 0; i < collection.length; i++) {
-      if (collection[i].name === name) return collection[i];
+      if (collection.item(i).name === name) return collection.item(i);
     }
   } catch (e) {
     /* ignore */
@@ -961,8 +961,301 @@ function init() {
   if (saveBtn) saveBtn.addEventListener("click", saveSettings);
   if (refreshBtn) refreshBtn.addEventListener("click", renderSettings);
 
+  const formatBtn = $("btn-format");
+  const revealBtn = $("btn-reveal");
+  const liveSwitch = $("sw-live");
+  if (formatBtn) formatBtn.addEventListener("click", formatSelectionNow);
+  if (revealBtn) revealBtn.addEventListener("click", toggleReveal);
+  if (liveSwitch) {
+    liveSwitch.addEventListener("change", (e) => setLive(!!(e.target && e.target.checked)));
+  }
+
   wireDropzone();
   setStatus("Ready. Drop a .md / .txt file above, or click Import.");
+}
+
+/* ===================================================================== *
+ * In-place formatting (type Markdown directly) + Reveal syntax
+ * ===================================================================== */
+
+/* The text frame / story the cursor is in (no new frame is created here). */
+function getActiveStory(app) {
+  try {
+    const sel = app.selection;
+    if (sel && sel.length === 1 && sel[0] && sel[0].parentStory) {
+      return sel[0].parentStory;
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  return null;
+}
+
+/* One find/change GREP pass: strip the syntax (keep $1) and apply a style. */
+function grepFormat(app, target, find, opts) {
+  const id = require("indesign");
+  try {
+    app.findGrepPreferences = id.NothingEnum.NOTHING;
+    app.changeGrepPreferences = id.NothingEnum.NOTHING;
+    app.findGrepPreferences.findWhat = find;
+    app.changeGrepPreferences.changeTo = "$1";
+    if (opts.charStyle) app.changeGrepPreferences.appliedCharacterStyle = opts.charStyle;
+    if (opts.paraStyle) app.changeGrepPreferences.appliedParagraphStyle = opts.paraStyle;
+    target.changeGrep();
+  } catch (e) {
+    /* ignore individual rule errors */
+  } finally {
+    try {
+      app.findGrepPreferences = id.NothingEnum.NOTHING;
+      app.changeGrepPreferences = id.NothingEnum.NOTHING;
+    } catch (e) {
+      /* ignore */
+    }
+  }
+}
+
+/* Convert completed Markdown already present in a story, in place. */
+function formatStory(story, mapping) {
+  const app = getApp();
+  const doc = app.activeDocument;
+  const cs = (k) => resolveCharacterStyle(doc, mapping.character[k]);
+  const ps = (k) => resolveParagraphStyle(doc, mapping.paragraph[k]);
+
+  // Inline (only runs for constructs the user has mapped to a character style).
+  const inline = [
+    ["boldItalic", "\\*\\*\\*(.+?)\\*\\*\\*"],
+    ["boldItalic", "___(.+?)___"],
+    ["bold", "\\*\\*(.+?)\\*\\*"],
+    ["bold", "__(.+?)__"],
+    ["strikethrough", "~~(.+?)~~"],
+    ["highlight", "==(.+?)=="],
+    ["inlineCode", "`(.+?)`"],
+    ["italic", "\\*(.+?)\\*"],
+    ["italic", "(?<![A-Za-z0-9_])_(.+?)_(?![A-Za-z0-9_])"],
+    ["link", "\\[(.+?)\\]\\((.+?)\\)"]
+  ];
+  inline.forEach((rule) => {
+    const style = cs(rule[0]);
+    if (style) grepFormat(app, story, rule[1], { charStyle: style });
+  });
+
+  // Headings h6..h1 (longest hash run first so shorter ones don't pre-empt).
+  for (let n = 6; n >= 1; n--) {
+    const style = ps("h" + n);
+    if (style) grepFormat(app, story, "^#{" + n + "}\\s+(.+)$", { paraStyle: style });
+  }
+  // Task list before bulleted list (task lines begin with a bullet too).
+  if (ps("taskList")) grepFormat(app, story, "^[-*+]\\s+\\[[ xX]\\]\\s+(.+)$", { paraStyle: ps("taskList") });
+  if (ps("blockquote")) grepFormat(app, story, "^>\\s?(.+)$", { paraStyle: ps("blockquote") });
+  if (ps("unorderedList")) grepFormat(app, story, "^[-*+]\\s+(.+)$", { paraStyle: ps("unorderedList") });
+  if (ps("orderedList")) grepFormat(app, story, "^\\d+[.)]\\s+(.+)$", { paraStyle: ps("orderedList") });
+}
+
+function formatSelectionNow() {
+  if (revealState) {
+    setStatus("Turn off Reveal formatting before formatting.", "error");
+    return;
+  }
+  if (!hasOpenDocument()) {
+    setStatus("Open a document first.", "error");
+    return;
+  }
+  const story = getActiveStory(getApp());
+  if (!story) {
+    setStatus("Click into a text frame (or select one) first.", "error");
+    return;
+  }
+  try {
+    formatStory(story, currentMapping);
+    setStatus("Formatted Markdown in the current story.", "ok");
+  } catch (e) {
+    setStatus("Format failed: " + (e && e.message ? e.message : e), "error");
+  }
+}
+
+let liveTimer = null;
+function tickLive() {
+  try {
+    if (revealState || !hasOpenDocument()) return;
+    const story = getActiveStory(getApp());
+    if (story) formatStory(story, currentMapping);
+  } catch (e) {
+    /* ignore – keep the timer alive */
+  }
+}
+function setLive(on) {
+  if (on) {
+    if (!liveTimer) liveTimer = setInterval(tickLive, 1200);
+    setStatus("Live auto-format on — completed Markdown converts as you type.", "ok");
+  } else if (liveTimer) {
+    clearInterval(liveTimer);
+    liveTimer = null;
+    setStatus("Live auto-format off.");
+  }
+}
+
+/* ---- Reveal formatting (show the syntax again, in light vibrant blue) ---- */
+
+const SYNTAX_STYLE_NAME = "inDown Syntax";
+
+function ensureSyntaxStyle(doc) {
+  const id = require("indesign");
+  let color = doc.colors.itemByName("inDown Syntax Blue");
+  try {
+    if (!color.isValid) {
+      color = doc.colors.add();
+      color.name = "inDown Syntax Blue";
+      color.model = id.ColorModel.PROCESS;
+      color.space = id.ColorSpace.RGB;
+      color.colorValue = [77, 166, 255];
+    }
+  } catch (e) {
+    color = null;
+  }
+  let style = doc.characterStyles.itemByName(SYNTAX_STYLE_NAME);
+  try {
+    if (!style.isValid) {
+      style = doc.characterStyles.add();
+      style.name = SYNTAX_STYLE_NAME;
+    }
+    if (color && color.isValid) style.fillColor = color;
+  } catch (e) {
+    /* ignore */
+  }
+  return style;
+}
+
+function reverseParaMarkers(mapping) {
+  const map = {};
+  const add = (key, marker) => {
+    const name = mapping.paragraph[key];
+    if (name && !(name in map)) map[name] = marker;
+  };
+  add("h1", "# "); add("h2", "## "); add("h3", "### ");
+  add("h4", "#### "); add("h5", "##### "); add("h6", "###### ");
+  add("blockquote", "> "); add("unorderedList", "- ");
+  add("orderedList", "1. "); add("taskList", "- [ ] ");
+  return map;
+}
+
+function reverseCharMarkers(mapping) {
+  const map = {};
+  const add = (key, marker) => {
+    const name = mapping.character[key];
+    if (name && !(name in map)) map[name] = marker;
+  };
+  add("bold", "**"); add("italic", "*"); add("boldItalic", "***");
+  add("inlineCode", "`"); add("strikethrough", "~~"); add("highlight", "==");
+  return map;
+}
+
+function revealShow(story, doc, mapping) {
+  const syntaxStyle = ensureSyntaxStyle(doc);
+  const paraMap = reverseParaMarkers(mapping);
+  const charMap = reverseCharMarkers(mapping);
+  const edits = [];
+
+  const paras = story.paragraphs;
+  for (let i = 0; i < paras.length; i++) {
+    try {
+      const p = paras.item(i);
+      const marker = paraMap[p.appliedParagraphStyle.name];
+      if (marker && p.characters.length > 0) {
+        edits.push({ index: p.characters.firstItem().index, text: marker });
+      }
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  const ranges = story.textStyleRanges;
+  for (let i = 0; i < ranges.length; i++) {
+    try {
+      const tsr = ranges.item(i);
+      const name = tsr.appliedCharacterStyle.name;
+      if (name === SYNTAX_STYLE_NAME) continue;
+      const marker = charMap[name];
+      if (marker && tsr.characters.length > 0) {
+        edits.push({ index: tsr.characters.firstItem().index, text: marker });
+        edits.push({ index: tsr.characters.lastItem().index + 1, text: marker });
+      }
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  // Apply from the end backwards so earlier indices stay valid.
+  edits.sort((a, b) => b.index - a.index);
+  for (let i = 0; i < edits.length; i++) {
+    try {
+      const e = edits[i];
+      story.insertionPoints.item(e.index).contents = e.text;
+      story.characters.itemByRange(e.index, e.index + e.text.length - 1).appliedCharacterStyle = syntaxStyle;
+    } catch (err) {
+      /* ignore */
+    }
+  }
+}
+
+function revealHide(story) {
+  const spans = [];
+  try {
+    const ranges = story.textStyleRanges;
+    for (let i = 0; i < ranges.length; i++) {
+      try {
+        const tsr = ranges.item(i);
+        if (tsr.appliedCharacterStyle.name === SYNTAX_STYLE_NAME && tsr.characters.length > 0) {
+          spans.push([tsr.characters.firstItem().index, tsr.characters.lastItem().index]);
+        }
+      } catch (e) {
+        /* ignore */
+      }
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  spans.sort((a, b) => b[0] - a[0]);
+  for (let i = 0; i < spans.length; i++) {
+    try {
+      story.characters.itemByRange(spans[i][0], spans[i][1]).remove();
+    } catch (e) {
+      try {
+        story.characters.itemByRange(spans[i][0], spans[i][1]).contents = "";
+      } catch (e2) {
+        /* ignore */
+      }
+    }
+  }
+}
+
+let revealState = false;
+function toggleReveal() {
+  if (!hasOpenDocument()) {
+    setStatus("Open a document first.", "error");
+    return;
+  }
+  const app = getApp();
+  const story = getActiveStory(app);
+  if (!story) {
+    setStatus("Click into a text frame (or select one) first.", "error");
+    return;
+  }
+  const btn = $("btn-reveal");
+  try {
+    if (!revealState) {
+      revealShow(story, app.activeDocument, currentMapping);
+      revealState = true;
+      if (btn) btn.textContent = "Hide formatting";
+      setStatus("Showing Markdown syntax in blue.", "ok");
+    } else {
+      revealHide(story);
+      revealState = false;
+      if (btn) btn.textContent = "Reveal formatting";
+      setStatus("Hid Markdown syntax.", "ok");
+    }
+  } catch (e) {
+    setStatus("Reveal failed: " + (e && e.message ? e.message : e), "error");
+  }
 }
 
 /* ===================================================================== *
