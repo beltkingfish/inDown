@@ -4,12 +4,10 @@
   "name": "inDown",
   "version": "1.0.0",
   "main": "index.html",
-  "host": [
-    {
-      "app": "indesign",
-      "minVersion": "18.0"
-    }
-  ],
+  "host": {
+    "app": "ID",
+    "minVersion": "18.0"
+  },
   "entrypoints": [
     {
       "type": "panel",
