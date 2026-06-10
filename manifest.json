@@ -15,24 +15,18 @@
       "type": "panel",
       "id": "indown.panel.main",
       "label": {
-        "default": "inDown — Markdown"
+        "default": "inDown"
       },
       "minimumSize": { "width": 240, "height": 240 },
       "maximumSize": { "width": 2400, "height": 2400 },
       "preferredDockedSize": { "width": 320, "height": 480 },
-      "preferredFloatingSize": { "width": 360, "height": 560 },
-      "menuItems": [
-        { "id": "import", "label": "Import Markdown File…" },
-        { "id": "settings", "label": "Configure styles…" }
-      ]
+      "preferredFloatingSize": { "width": 360, "height": 560 }
     }
   ],
   "requiredPermissions": {
     "localFileSystem": "fullAccess",
-    "allowCodeGenerationFromStrings": false,
     "network": {
       "domains": "all"
     }
-  },
-  "icons": []
+  }
 }
