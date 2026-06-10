@@ -1,0 +1,35 @@
+{
+  "manifestVersion": 5,
+  "id": "com.indown.markdown",
+  "name": "inDown",
+  "version": "1.0.0",
+  "main": "index.html",
+  "host": [
+    {
+      "app": "indesign",
+      "minVersion": "18.0.0"
+    }
+  ],
+  "entrypoints": [
+    {
+      "type": "panel",
+      "id": "indown.panel.main",
+      "label": {
+        "default": "inDown — Markdown"
+      },
+      "minimumSize": { "width": 240, "height": 240 },
+      "maximumSize": { "width": 2400, "height": 2400 },
+      "preferredDockedSize": { "width": 320, "height": 480 },
+      "preferredFloatingSize": { "width": 360, "height": 560 },
+      "menuItems": [
+        { "id": "import", "label": "Import Markdown File…" },
+        { "id": "settings", "label": "Configure styles…" }
+      ]
+    }
+  ],
+  "requiredPermissions": {
+    "localFileSystem": "fullAccess",
+    "allowCodeGenerationFromStrings": false
+  },
+  "icons": []
+}

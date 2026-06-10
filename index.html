@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="styles/main.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- ===================== Import view ===================== -->
+      <div id="view-import" class="view">
+        <div id="dropzone" class="dropzone">
+          <div class="dz-icon">⤓</div>
+          <div class="dz-title">Drop a .md or .txt file here</div>
+          <div class="dz-sub">or</div>
+          <sp-button id="btn-import" variant="cta">Import Markdown File…</sp-button>
+        </div>
+
+        <div id="status" class="status">Ready.</div>
+
+        <div class="footer">
+          <sp-button id="btn-settings" quiet variant="secondary">Configure styles…</sp-button>
+        </div>
+      </div>
+
+      <!-- ===================== Settings view ===================== -->
+      <div id="view-settings" class="view hidden">
+        <div class="settings-header">
+          <div class="settings-title">Map Markdown → InDesign styles</div>
+          <sp-button id="btn-refresh" quiet variant="secondary" size="s">Refresh</sp-button>
+        </div>
+
+        <div id="no-doc" class="warn hidden">
+          Open an InDesign document to load its styles.
+        </div>
+
+        <div class="section-title">Paragraph styles</div>
+        <div id="para-list" class="map-list"></div>
+
+        <div class="section-title">Character styles (inline)</div>
+        <div id="char-list" class="map-list"></div>
+
+        <div class="settings-footer">
+          <sp-button id="btn-back" variant="secondary">Back</sp-button>
+          <sp-button id="btn-save" variant="cta">Save mapping</sp-button>
+        </div>
+      </div>
+    </div>
+
+    <script src="src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "indown",
+  "version": "1.0.0",
+  "description": "Bring Markdown (.md / .txt) into Adobe InDesign, mapped to your paragraph and character styles.",
+  "license": "MIT",
+  "scripts": {
+    "test": "node test/parser.test.js"
+  },
+  "keywords": [
+    "indesign",
+    "uxp",
+    "markdown",
+    "plugin"
+  ]
+}
