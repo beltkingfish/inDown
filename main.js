@@ -1038,6 +1038,41 @@ function formatStory(story, mapping) {
   const cs = (k) => resolveCharacterStyle(doc, mapping.character[k]);
   const ps = (k) => resolveParagraphStyle(doc, mapping.paragraph[k]);
 
+  // Headings are single-line. If a heading paragraph style repeats on
+  // consecutive paragraphs (e.g. you pressed Return after a heading), the
+  // later ones inherited the style — reset them to Body so a new line doesn't
+  // keep the heading. A genuinely different next heading (## after #) is a
+  // different style, so it is preserved; anything you actually type is
+  // re-styled by the passes below.
+  const bodyStyle = ps("paragraph");
+  if (bodyStyle) {
+    const headingNames = {};
+    for (let n = 1; n <= 6; n++) {
+      const s = ps("h" + n);
+      if (s) headingNames[s.name] = true;
+    }
+    try {
+      const paras = story.paragraphs;
+      const count = paras.length;
+      const resetIdx = [];
+      let prevName = null;
+      for (let i = 0; i < count; i++) {
+        const nm = atIndex(paras, i).appliedParagraphStyle.name;
+        if (headingNames[nm] && nm === prevName) resetIdx.push(i);
+        prevName = nm;
+      }
+      for (let k = 0; k < resetIdx.length; k++) {
+        try {
+          atIndex(paras, resetIdx[k]).appliedParagraphStyle = bodyStyle;
+        } catch (e) {
+          /* ignore */
+        }
+      }
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
   // Inline (only runs for constructs the user has mapped to a character style).
   const inline = [
     ["boldItalic", "\\*\\*\\*(.+?)\\*\\*\\*"],
