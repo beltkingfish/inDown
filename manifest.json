@@ -29,7 +29,10 @@
   ],
   "requiredPermissions": {
     "localFileSystem": "fullAccess",
-    "allowCodeGenerationFromStrings": false
+    "allowCodeGenerationFromStrings": false,
+    "network": {
+      "domains": "all"
+    }
   },
   "icons": []
 }
