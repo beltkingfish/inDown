@@ -65,19 +65,18 @@ actual image placement is planned for a future release.
 ## Project layout
 
 ```
-manifest.json            UXP manifest (panel + flyout menu, permissions)
+manifest.json            UXP manifest (host "ID", panel + flyout, permissions)
 index.html               Panel markup (import view + settings view)
 styles/main.css          Panel styling
-src/
-  main.js                Panel controller: wiring, import, settings UI
-  markdown/parser.js     Markdown → block list (no InDesign dependency)
-  indesign/styles.js     Read / resolve paragraph & character styles
-  indesign/importer.js   Flow blocks into the document, apply styles
-  config/elements.js     The set of mappable Markdown constructs
-  config/mapping.js      Load / save the style mapping (persisted)
+main.js                  Whole plugin: parser, style mapping, importer, panel UI
 test/parser.test.js      Parser unit checks (run: npm test)
 samples/sample.md        Example document
 ```
+
+`main.js` is a single root file with no cross-file `require`s (UXP loads it as
+the panel's root script, where local module resolution is unreliable). The
+built-in `uxp` / `indesign` modules are required lazily, so the parser is still
+unit-testable in plain Node.
 
 ## Develop
 

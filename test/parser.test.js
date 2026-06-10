@@ -8,7 +8,7 @@
  */
 
 const assert = require("assert");
-const { parseMarkdown, parseInline } = require("../src/markdown/parser.js");
+const { parseMarkdown, parseInline } = require("../main.js");
 
 let passed = 0;
 function check(name, fn) {
