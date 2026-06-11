@@ -909,15 +909,25 @@ function makePickerRow(container, label, names, current, store, key) {
     menu.appendChild(it);
   });
 
-  if (current) picker.value = current;
+  // Add the row to the DOM BEFORE assigning picker.value: on some sp-picker
+  // builds that assignment can throw, and doing it first would drop the whole
+  // row. The selection is also reflected by the menu-item's 'selected'
+  // attribute above, and the saved value is kept in _selectedValue regardless.
+  row.appendChild(picker);
+  container.appendChild(row);
+  store[key] = picker;
+
   picker._selectedValue = current || "";
   picker.addEventListener("change", (e) => {
     picker._selectedValue = (e.target && e.target.value) || "";
   });
-
-  row.appendChild(picker);
-  container.appendChild(row);
-  store[key] = picker;
+  if (current) {
+    try {
+      picker.value = current;
+    } catch (e) {
+      /* selection still shown via the menu-item 'selected' attribute */
+    }
+  }
 }
 
 function renderSettings() {
