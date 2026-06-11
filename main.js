@@ -922,24 +922,50 @@ function makePickerRow(container, label, names, current, store, key) {
 
 function renderSettings() {
   const hasDoc = hasOpenDocument();
-  $("no-doc").classList.toggle("hidden", hasDoc);
+  const noDoc = $("no-doc");
+  if (noDoc) noDoc.classList.toggle("hidden", hasDoc);
 
-  const paraNames = listParagraphStyleNames();
-  const charNames = listCharacterStyleNames();
+  let paraNames = [];
+  let charNames = [];
+  try {
+    paraNames = listParagraphStyleNames();
+  } catch (e) {
+    /* ignore */
+  }
+  try {
+    charNames = listCharacterStyleNames();
+  } catch (e) {
+    /* ignore */
+  }
 
   const pl = $("para-list");
-  pl.innerHTML = "";
-  pickerRefs.paragraph = {};
-  PARAGRAPH_ELEMENTS.forEach((el) =>
-    makePickerRow(pl, el.label, paraNames, currentMapping.paragraph[el.key], pickerRefs.paragraph, el.key)
-  );
-
   const cl = $("char-list");
-  cl.innerHTML = "";
+
+  // Clear BOTH lists up front so a later failure can never leave one list
+  // showing stale rows from a previous open.
+  if (pl) pl.innerHTML = "";
+  if (cl) cl.innerHTML = "";
+  pickerRefs.paragraph = {};
   pickerRefs.character = {};
-  CHARACTER_ELEMENTS.forEach((el) =>
-    makePickerRow(cl, el.label, charNames, currentMapping.character[el.key], pickerRefs.character, el.key)
-  );
+
+  if (pl) {
+    PARAGRAPH_ELEMENTS.forEach((el) => {
+      try {
+        makePickerRow(pl, el.label, paraNames, currentMapping.paragraph[el.key], pickerRefs.paragraph, el.key);
+      } catch (e) {
+        /* skip a single bad row, keep the rest */
+      }
+    });
+  }
+  if (cl) {
+    CHARACTER_ELEMENTS.forEach((el) => {
+      try {
+        makePickerRow(cl, el.label, charNames, currentMapping.character[el.key], pickerRefs.character, el.key);
+      } catch (e) {
+        /* skip a single bad row, keep the rest */
+      }
+    });
+  }
 }
 
 function readPicker(picker) {
@@ -1336,7 +1362,7 @@ try {
         },
         menuItems: [
           { id: "import", label: "Import Markdown File…" },
-          { id: "settings", label: "Configure styles…" }
+          { id: "settings", label: "Style Mapping…" }
         ],
         invokeMenu(id) {
           try {
