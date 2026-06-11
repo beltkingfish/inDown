@@ -48,17 +48,34 @@
       <div id="view-settings" class="view hidden">
         <div class="settings-header">
           <div class="settings-title">Style Mapping</div>
-          <sp-button id="btn-refresh" variant="secondary" quiet size="s">Refresh</sp-button>
+          <div class="btn-row">
+            <sp-button id="btn-automap" variant="secondary" size="s">Auto-map</sp-button>
+            <sp-button id="btn-refresh" variant="secondary" quiet size="s">Refresh</sp-button>
+          </div>
         </div>
 
-        <div class="hint">Match each Markdown element to a style in the active document.</div>
+        <div class="hint">Match each Markdown element to a style in the active document. Auto-map fills empty rows by style name.</div>
         <div id="no-doc" class="warn hidden">Open a document to load its styles.</div>
+        <div id="settings-status" class="status hidden"></div>
 
         <div class="section-title">Paragraph styles</div>
         <div id="para-list" class="map-list"></div>
 
         <div class="section-title">Character styles (inline)</div>
         <div id="char-list" class="map-list"></div>
+
+        <div class="section-title">Presets</div>
+        <div class="preset-row">
+          <sp-textfield id="preset-name" placeholder="New preset name"></sp-textfield>
+          <sp-button id="btn-preset-save" variant="secondary" size="s">Save</sp-button>
+        </div>
+        <div class="preset-row">
+          <sp-picker id="preset-picker" size="s" class="preset-picker">
+            <sp-menu id="preset-menu"></sp-menu>
+          </sp-picker>
+          <sp-button id="btn-preset-load" variant="secondary" size="s">Load</sp-button>
+          <sp-button id="btn-preset-delete" variant="secondary" quiet size="s">Delete</sp-button>
+        </div>
 
         <div class="settings-footer">
           <sp-button id="btn-back" variant="secondary">Back</sp-button>

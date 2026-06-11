@@ -468,6 +468,114 @@ function saveMapping(mapping) {
   }
 }
 
+/* ---- Named mapping presets ---- */
+
+const PRESETS_KEY = "indown.stylePresets.v1";
+let presetsMemory = null;
+
+function loadPresets() {
+  let raw = null;
+  const store = getStore();
+  try {
+    raw = store ? store.getItem(PRESETS_KEY) : presetsMemory;
+  } catch (e) {
+    raw = presetsMemory;
+  }
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function savePresets(presets) {
+  const raw = JSON.stringify(presets);
+  const store = getStore();
+  try {
+    if (store) store.setItem(PRESETS_KEY, raw);
+    else presetsMemory = raw;
+  } catch (e) {
+    presetsMemory = raw;
+  }
+}
+
+/* Merge a stored preset onto a complete empty mapping (tolerates old shapes). */
+function normalizeMapping(p) {
+  const base = emptyMapping();
+  if (p && p.paragraph) Object.assign(base.paragraph, p.paragraph);
+  if (p && p.character) Object.assign(base.character, p.character);
+  return base;
+}
+
+/* ---- Auto-map: fuzzy-match document style names to Markdown elements ---- */
+
+function normName(s) {
+  return String(s == null ? "" : s).toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/*
+ * Pick the best style name for an element. Exact normalized matches win
+ * (including `exactExtras` like "title", which are too risky for substring
+ * matching — "Subtitle" contains "title"); then substring matches on
+ * candidates of length >= 3.
+ */
+function autoMatch(names, candidates, exactExtras) {
+  const normed = [];
+  for (let i = 0; i < names.length; i++) {
+    normed.push({ raw: names[i], norm: normName(names[i]) });
+  }
+  const exact = candidates.concat(exactExtras || []);
+  for (let c = 0; c < exact.length; c++) {
+    for (let i = 0; i < normed.length; i++) {
+      if (normed[i].norm === exact[c]) return normed[i].raw;
+    }
+  }
+  for (let c = 0; c < candidates.length; c++) {
+    if (candidates[c].length < 3) continue;
+    for (let i = 0; i < normed.length; i++) {
+      if (normed[i].norm.indexOf(candidates[c]) >= 0) return normed[i].raw;
+    }
+  }
+  return "";
+}
+
+const AUTO_PARA_CANDIDATES = {
+  paragraph: ["body", "bodytext", "paragraph", "text", "basicparagraph", "p"],
+  blockquote: ["blockquote", "quote"],
+  codeBlock: ["codeblock", "code", "source", "monospace", "mono"],
+  unorderedList: ["bulletlist", "bulletedlist", "bullets", "bullet", "unorderedlist", "listbullet"],
+  orderedList: ["numberedlist", "numberlist", "numbered", "orderedlist", "listnumber"],
+  taskList: ["tasklist", "checklist", "task", "todo"],
+  horizontalRule: ["horizontalrule", "rule", "divider", "hr"],
+  tableHeader: ["tableheader", "tablehead", "thead"],
+  tableCell: ["tablecell", "tablebody", "table"],
+  image: ["imagecaption", "caption", "image", "figure"]
+};
+
+const AUTO_CHAR_CANDIDATES = {
+  bold: ["bold", "strong"],
+  italic: ["italic", "italics", "emphasis"],
+  boldItalic: ["bolditalic", "bolditalics", "strongemphasis"],
+  inlineCode: ["inlinecode", "code", "monospace", "mono"],
+  link: ["hyperlink", "link", "url"],
+  strikethrough: ["strikethrough", "strike", "deleted"],
+  highlight: ["highlight", "highlighted", "marker", "mark"]
+};
+
+function autoCandidatesForPara(key) {
+  const m = /^h([1-6])$/.exec(key);
+  if (m) {
+    const n = m[1];
+    return {
+      candidates: ["h" + n, "heading" + n, "header" + n, "head" + n],
+      exactExtras: n === "1" ? ["title"] : n === "2" ? ["subtitle"] : []
+    };
+  }
+  return { candidates: AUTO_PARA_CANDIDATES[key] || [], exactExtras: [] };
+}
+
 /* ===================================================================== *
  * InDesign styles  (lazy `indesign`)
  * ===================================================================== */
@@ -1002,7 +1110,15 @@ function makePickerRow(container, label, names, current, store, key) {
   }
 }
 
-function renderSettings() {
+function setSettingsStatus(msg, kind) {
+  const el = $("settings-status");
+  if (!el) return;
+  el.textContent = msg || "";
+  el.className = "status" + (kind ? " " + kind : "") + (msg ? "" : " hidden");
+}
+
+function renderSettings(mappingOverride) {
+  const mref = mappingOverride || currentMapping;
   const hasDoc = hasOpenDocument();
   const noDoc = $("no-doc");
   if (noDoc) noDoc.classList.toggle("hidden", hasDoc);
@@ -1033,7 +1149,7 @@ function renderSettings() {
   if (pl) {
     PARAGRAPH_ELEMENTS.forEach((el) => {
       try {
-        makePickerRow(pl, el.label, paraNames, currentMapping.paragraph[el.key], pickerRefs.paragraph, el.key);
+        makePickerRow(pl, el.label, paraNames, mref.paragraph[el.key], pickerRefs.paragraph, el.key);
       } catch (e) {
         /* skip a single bad row, keep the rest */
       }
@@ -1042,12 +1158,124 @@ function renderSettings() {
   if (cl) {
     CHARACTER_ELEMENTS.forEach((el) => {
       try {
-        makePickerRow(cl, el.label, charNames, currentMapping.character[el.key], pickerRefs.character, el.key);
+        makePickerRow(cl, el.label, charNames, mref.character[el.key], pickerRefs.character, el.key);
       } catch (e) {
         /* skip a single bad row, keep the rest */
       }
     });
   }
+
+  renderPresetPicker();
+}
+
+/* ---- Presets & auto-map UI ---- */
+
+function renderPresetPicker() {
+  const menu = $("preset-menu");
+  const picker = $("preset-picker");
+  if (!menu || !picker) return;
+  menu.innerHTML = "";
+  const names = Object.keys(loadPresets()).sort();
+  const none = document.createElement("sp-menu-item");
+  none.textContent = names.length ? "(Choose preset)" : "(No presets saved)";
+  none.setAttribute("value", "");
+  menu.appendChild(none);
+  names.forEach((n) => {
+    const it = document.createElement("sp-menu-item");
+    it.textContent = n;
+    it.setAttribute("value", n);
+    menu.appendChild(it);
+  });
+  picker._selectedValue = "";
+}
+
+function presetSave() {
+  const field = $("preset-name");
+  const name = field && field.value ? String(field.value).trim() : "";
+  if (!name) {
+    setSettingsStatus("Type a preset name first.", "error");
+    return;
+  }
+  const presets = loadPresets();
+  presets[name] = collectMappingFromUI();
+  savePresets(presets);
+  if (field) field.value = "";
+  renderPresetPicker();
+  setSettingsStatus('Preset "' + name + '" saved.', "ok");
+}
+
+function presetLoad() {
+  const picker = $("preset-picker");
+  const name = picker ? readPicker(picker) : "";
+  if (!name) {
+    setSettingsStatus("Choose a preset to load.", "error");
+    return;
+  }
+  const presets = loadPresets();
+  if (!presets[name]) {
+    setSettingsStatus('Preset "' + name + '" not found.', "error");
+    return;
+  }
+  currentMapping = normalizeMapping(presets[name]);
+  saveMapping(currentMapping);
+  renderSettings();
+  setSettingsStatus('Preset "' + name + '" loaded and applied.', "ok");
+}
+
+function presetDelete() {
+  const picker = $("preset-picker");
+  const name = picker ? readPicker(picker) : "";
+  if (!name) {
+    setSettingsStatus("Choose a preset to delete.", "error");
+    return;
+  }
+  const presets = loadPresets();
+  if (!presets[name]) {
+    setSettingsStatus('Preset "' + name + '" not found.', "error");
+    return;
+  }
+  delete presets[name];
+  savePresets(presets);
+  renderPresetPicker();
+  setSettingsStatus('Preset "' + name + '" deleted.', "ok");
+}
+
+/* Fill UNMAPPED rows by fuzzy-matching the document's style names. */
+function autoMapStyles() {
+  if (!hasOpenDocument()) {
+    setSettingsStatus("Open a document to auto-map its styles.", "error");
+    return;
+  }
+  const ui = collectMappingFromUI();
+  const paraNames = listParagraphStyleNames();
+  const charNames = listCharacterStyleNames();
+  let filled = 0;
+
+  PARAGRAPH_ELEMENTS.forEach((el) => {
+    if (ui.paragraph[el.key]) return; // never clobber an existing choice
+    const spec = autoCandidatesForPara(el.key);
+    const hit = autoMatch(paraNames, spec.candidates, spec.exactExtras);
+    if (hit) {
+      ui.paragraph[el.key] = hit;
+      filled += 1;
+    }
+  });
+  CHARACTER_ELEMENTS.forEach((el) => {
+    if (ui.character[el.key]) return;
+    const hit = autoMatch(charNames, AUTO_CHAR_CANDIDATES[el.key] || []);
+    if (hit) {
+      ui.character[el.key] = hit;
+      filled += 1;
+    }
+  });
+
+  renderSettings(ui); // shown but not persisted — user reviews, then saves
+  setSettingsStatus(
+    filled
+      ? "Auto-mapped " + filled + " element" + (filled === 1 ? "" : "s") + " — review, then Save mapping."
+      : "No matching style names found.",
+    filled ? "ok" : "error"
+  );
 }
 
 function readPicker(picker) {
@@ -1056,10 +1284,13 @@ function readPicker(picker) {
   return picker.value || "";
 }
 
-function saveSettings() {
+/*
+ * Mapping as currently shown in the pickers. If a picker row is missing
+ * (failed to render), keep the previously saved value for that key instead
+ * of silently wiping it with "".
+ */
+function collectMappingFromUI() {
   const m = emptyMapping();
-  // If a picker row is missing (failed to render), keep the previously saved
-  // value for that key instead of silently wiping it with "".
   PARAGRAPH_ELEMENTS.forEach((el) => {
     const picker = pickerRefs.paragraph[el.key];
     m.paragraph[el.key] = picker ? readPicker(picker) : currentMapping.paragraph[el.key] || "";
@@ -1068,6 +1299,11 @@ function saveSettings() {
     const picker = pickerRefs.character[el.key];
     m.character[el.key] = picker ? readPicker(picker) : currentMapping.character[el.key] || "";
   });
+  return m;
+}
+
+function saveSettings() {
+  const m = collectMappingFromUI();
   currentMapping = m;
   saveMapping(m);
   setStatus("Style mapping saved.", "ok");
@@ -1097,6 +1333,21 @@ function init() {
   if (formatBtn) formatBtn.addEventListener("click", formatSelectionNow);
   if (revealBtn) revealBtn.addEventListener("click", toggleReveal);
   if (exportBtn) exportBtn.addEventListener("click", exportStoryMarkdown);
+
+  const autoMapBtn = $("btn-automap");
+  const presetSaveBtn = $("btn-preset-save");
+  const presetLoadBtn = $("btn-preset-load");
+  const presetDeleteBtn = $("btn-preset-delete");
+  const presetPicker = $("preset-picker");
+  if (autoMapBtn) autoMapBtn.addEventListener("click", autoMapStyles);
+  if (presetSaveBtn) presetSaveBtn.addEventListener("click", presetSave);
+  if (presetLoadBtn) presetLoadBtn.addEventListener("click", presetLoad);
+  if (presetDeleteBtn) presetDeleteBtn.addEventListener("click", presetDelete);
+  if (presetPicker) {
+    presetPicker.addEventListener("change", (e) => {
+      presetPicker._selectedValue = (e.target && e.target.value) || "";
+    });
+  }
   if (liveSwitch) {
     liveSwitch.addEventListener("change", (e) => setLive(!!(e.target && e.target.checked)));
   }
@@ -1776,5 +2027,15 @@ try {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { parseMarkdown, parseInline, FLAG, pickCharKey, emptyMapping };
+  module.exports = {
+    parseMarkdown,
+    parseInline,
+    FLAG,
+    pickCharKey,
+    emptyMapping,
+    normName,
+    autoMatch,
+    autoCandidatesForPara,
+    listLineMarkdown
+  };
 }

@@ -29,6 +29,11 @@ style, `##` to "Heading 2", body text to "Body", and so on. Inline formatting
   clipboard, or saves a `.md` if the clipboard is unavailable.
 - **Style Mapping window** — scope every Markdown construct to a paragraph or
   character style from the active document. Saved between sessions.
+  - **Auto-map** fills empty rows by fuzzy-matching the document's style
+    names (e.g. `H1`/`Heading 1` → Heading 1, `Body`/`P` → Body); it never
+    overwrites a choice you've already made — review, then Save mapping.
+  - **Presets** — save the current mapping under a name and load or delete it
+    later (e.g. one preset per publication).
 - **Markdown coverage**
   - Headings `#`–`######`, plus setext (`===` / `---` underlines)
   - Paragraphs, blockquotes

@@ -176,6 +176,18 @@ body {
   min-width: 0;
 }
 
+.preset-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.preset-row sp-textfield,
+.preset-picker {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .warn {
   padding: 8px 10px;
   border-radius: var(--radius);
