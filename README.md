@@ -23,6 +23,10 @@ style, `##` to "Heading 2", body text to "Body", and so on. Inline formatting
     the new line back to your Body style.
   - **Reveal formatting** — shows the Markdown syntax again, in light blue,
     reconstructed from the applied styles; toggle off to remove it.
+- **Export** — **Copy story as Markdown** reconstructs Markdown from the
+  applied styles (headings, lists, blockquotes, code fences, rules, inline
+  styles, and link URLs from InDesign hyperlinks) and puts it on the
+  clipboard, or saves a `.md` if the clipboard is unavailable.
 - **Style Mapping window** — scope every Markdown construct to a paragraph or
   character style from the active document. Saved between sessions.
 - **Markdown coverage**
@@ -32,7 +36,7 @@ style, `##` to "Heading 2", body text to "Body", and so on. Inline formatting
   - Fenced code blocks, inline code
   - Bold, italic, bold-italic, strikethrough, highlight
   - Links (turned into live InDesign hyperlinks) and autolinks
-  - Tables (with header/body cell styles)
+  - Tables (with header/body cell styles and column alignment)
   - Horizontal rules
   - Images (rendered as a styled caption in v1 — see *Limitations*)
 
@@ -69,6 +73,15 @@ so that pressing Return after a heading resets the new line to Body. Reveal
 reconstructs headings, lists, blockquotes, and inline bold/italic/code/
 strikethrough/highlight; it does not rebuild link URLs, code fences, tables,
 or rules.
+
+**Performance:** imports and Format selection run as a single named undo step
+(one Cmd+Z reverts the whole import, and InDesign batches recomposition). The
+live formatter skips ticks when nothing changed and restricts its work to the
+paragraph being typed plus its predecessor, so it stays fast in long stories.
+
+**Export notes:** export is driven by the same style mapping (only mapped
+styles round-trip). Tables and placed images are not exported in this
+version, and consecutive code-block paragraphs export as one fenced block.
 
 ## Limitations (and why)
 
