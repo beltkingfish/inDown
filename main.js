@@ -203,7 +203,13 @@ function isBlank(s) {
 }
 
 function looksLikeTable(line, next) {
-  return line.indexOf("|") >= 0 && next != null && RE.tableDelim.test(next);
+  if (line.indexOf("|") < 0 || next == null || !RE.tableDelim.test(next)) {
+    return false;
+  }
+  // GFM: the delimiter row must match the header row in number of cells.
+  // Without this, "text | text" followed by a plain "---" is mis-read as a
+  // one-column table instead of a paragraph + rule/setext heading.
+  return splitRow(next).length === splitRow(line).length;
 }
 
 function isBlockStart(line, next) {
@@ -335,12 +341,33 @@ function parseMarkdown(src) {
     }
 
     const para = [];
+    let setext = 0;
     while (i < lines.length && !isBlank(lines[i]) && !isBlockStart(lines[i], lines[i + 1])) {
       para.push(lines[i]);
       i += 1;
+      // Setext heading: a paragraph line immediately underlined with = (h1)
+      // or - (h2). Checked inside the loop because "---" alone would
+      // otherwise terminate the paragraph as a horizontal rule.
+      const nl = lines[i];
+      if (nl != null) {
+        if (/^\s{0,3}=+\s*$/.test(nl)) {
+          setext = 1;
+          i += 1;
+          break;
+        }
+        if (/^\s{0,3}-+\s*$/.test(nl)) {
+          setext = 2;
+          i += 1;
+          break;
+        }
+      }
     }
     const joined = para.join(" ").replace(/\s+/g, " ").trim();
-    blocks.push({ type: "paragraph", styleKey: "paragraph", runs: parseInline(joined) });
+    if (setext) {
+      blocks.push({ type: "heading", styleKey: "h" + setext, level: setext, runs: parseInline(joined) });
+    } else {
+      blocks.push({ type: "paragraph", styleKey: "paragraph", runs: parseInline(joined) });
+    }
   }
 
   return blocks;
@@ -864,6 +891,16 @@ function wireDropzone() {
           text = await f.read({ format: storage.formats.utf8 });
         } else if (typeof f.text === "function") {
           text = await f.text();
+        } else if (f.path) {
+          // Some UXP builds only expose a filesystem path on dropped files.
+          try {
+            const entry = await storage.localFileSystem.getEntryWithUrl("file://" + f.path);
+            if (entry && typeof entry.read === "function") {
+              text = await entry.read({ format: storage.formats.utf8 });
+            }
+          } catch (pe) {
+            /* fall through to the error message below */
+          }
         }
       }
       if (text != null) runImport(text, name);
@@ -986,11 +1023,15 @@ function readPicker(picker) {
 
 function saveSettings() {
   const m = emptyMapping();
+  // If a picker row is missing (failed to render), keep the previously saved
+  // value for that key instead of silently wiping it with "".
   PARAGRAPH_ELEMENTS.forEach((el) => {
-    m.paragraph[el.key] = readPicker(pickerRefs.paragraph[el.key]);
+    const picker = pickerRefs.paragraph[el.key];
+    m.paragraph[el.key] = picker ? readPicker(picker) : currentMapping.paragraph[el.key] || "";
   });
   CHARACTER_ELEMENTS.forEach((el) => {
-    m.character[el.key] = readPicker(pickerRefs.character[el.key]);
+    const picker = pickerRefs.character[el.key];
+    m.character[el.key] = picker ? readPicker(picker) : currentMapping.character[el.key] || "";
   });
   currentMapping = m;
   saveMapping(m);
@@ -1249,7 +1290,7 @@ function revealShow(story, doc, mapping) {
       const p = atIndex(paras, i);
       const marker = paraMap[p.appliedParagraphStyle.name];
       if (marker && p.characters.length > 0) {
-        edits.push({ index: p.characters.firstItem().index, text: marker });
+        edits.push({ index: p.characters.firstItem().index, text: marker, kind: 1 });
       }
     } catch (e) {
       /* ignore */
@@ -1264,16 +1305,20 @@ function revealShow(story, doc, mapping) {
       if (name === SYNTAX_STYLE_NAME) continue;
       const marker = charMap[name];
       if (marker && tsr.characters.length > 0) {
-        edits.push({ index: tsr.characters.firstItem().index, text: marker });
-        edits.push({ index: tsr.characters.lastItem().index + 1, text: marker });
+        edits.push({ index: tsr.characters.firstItem().index, text: marker, kind: 0 });
+        edits.push({ index: tsr.characters.lastItem().index + 1, text: marker, kind: 0 });
       }
     } catch (e) {
       /* ignore */
     }
   }
 
-  // Apply from the end backwards so earlier indices stay valid.
-  edits.sort((a, b) => b.index - a.index);
+  // Apply from the end backwards so earlier indices stay valid. When a
+  // character-run marker and a paragraph marker land at the same index
+  // (styled run starting at paragraph start), apply the character marker
+  // first so the paragraph marker ends up outermost: "# **Title", not
+  // "**# Title".
+  edits.sort((a, b) => b.index - a.index || a.kind - b.kind);
   for (let i = 0; i < edits.length; i++) {
     try {
       const e = edits[i];
@@ -1317,27 +1362,37 @@ function revealHide(story) {
 }
 
 let revealState = false;
+let revealedStory = null; // hide must target the story that was revealed,
+                          // not whatever story happens to be selected now
 function toggleReveal() {
   if (!hasOpenDocument()) {
     setStatus("Open a document first.", "error");
     return;
   }
   const app = getApp();
-  const story = getActiveStory(app);
-  if (!story) {
-    setStatus("Click into a text frame (or select one) first.", "error");
-    return;
-  }
   const btn = $("btn-reveal");
   try {
     if (!revealState) {
+      const story = getActiveStory(app);
+      if (!story) {
+        setStatus("Click into a text frame (or select one) first.", "error");
+        return;
+      }
       revealShow(story, app.activeDocument, currentMapping);
       revealState = true;
+      revealedStory = story;
       if (btn) btn.textContent = "Hide formatting";
       setStatus("Showing Markdown syntax in blue.", "ok");
     } else {
-      revealHide(story);
+      let story = revealedStory;
+      try {
+        if (!story || story.isValid === false) story = getActiveStory(app);
+      } catch (e) {
+        story = getActiveStory(app);
+      }
+      if (story) revealHide(story);
       revealState = false;
+      revealedStory = null;
       if (btn) btn.textContent = "Reveal formatting";
       setStatus("Hid Markdown syntax.", "ok");
     }

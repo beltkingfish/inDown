@@ -143,4 +143,35 @@ check("standalone image block", () => {
   assert.strictEqual(blocks[0].url, "pic.png");
 });
 
+check("setext heading: === makes h1", () => {
+  const blocks = parseMarkdown("Title Text\n===\n\nbody");
+  assert.strictEqual(blocks[0].type, "heading");
+  assert.strictEqual(blocks[0].styleKey, "h1");
+  assert.strictEqual(blocks[0].runs.map((r) => r.text).join(""), "Title Text");
+  assert.strictEqual(blocks[1].type, "paragraph");
+});
+
+check("setext heading: --- right after text makes h2, not a rule", () => {
+  const blocks = parseMarkdown("Subtitle\n---\n\nbody");
+  assert.strictEqual(blocks[0].type, "heading");
+  assert.strictEqual(blocks[0].styleKey, "h2");
+  assert.strictEqual(blocks.some((b) => b.type === "horizontalRule"), false);
+});
+
+check("--- after a blank line is still a horizontal rule", () => {
+  const blocks = parseMarkdown("para\n\n---\n\nmore");
+  assert.strictEqual(blocks[1].type, "horizontalRule");
+});
+
+check("pipe paragraph + bare --- is not mis-read as a table", () => {
+  const blocks = parseMarkdown("either | or\n---");
+  assert.strictEqual(blocks.some((b) => b.type === "table"), false);
+  assert.strictEqual(blocks[0].type, "heading"); // setext h2
+});
+
+check("table still parses when delimiter cell count matches", () => {
+  const blocks = parseMarkdown("| A | B |\n| --- | --- |\n| 1 | 2 |");
+  assert.strictEqual(blocks[0].type, "table");
+});
+
 console.log("\nAll " + passed + " checks passed.");
