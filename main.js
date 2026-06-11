@@ -406,6 +406,18 @@ const CHARACTER_ELEMENTS = [
   { key: "highlight", label: "Highlight  ( == )" }
 ];
 
+/*
+ * Native InDesign table/cell styles for Markdown tables. When a Table Style
+ * is mapped it owns the table's look (its region cascade can carry cell and
+ * paragraph styles), and the per-cell paragraph fallback below is skipped
+ * unless explicitly mapped.
+ */
+const TABLE_ELEMENTS = [
+  { key: "tableStyle", label: "Table style", names: "table" },
+  { key: "headerCell", label: "Header row (cell style)", names: "cell" },
+  { key: "bodyCell", label: "Body rows (cell style)", names: "cell" }
+];
+
 /* ===================================================================== *
  * Style mapping persistence
  * ===================================================================== */
@@ -425,12 +437,15 @@ function getStore() {
 }
 
 function emptyMapping() {
-  const m = { paragraph: {}, character: {} };
+  const m = { paragraph: {}, character: {}, table: {} };
   PARAGRAPH_ELEMENTS.forEach((e) => {
     m.paragraph[e.key] = "";
   });
   CHARACTER_ELEMENTS.forEach((e) => {
     m.character[e.key] = "";
+  });
+  TABLE_ELEMENTS.forEach((e) => {
+    m.table[e.key] = "";
   });
   return m;
 }
@@ -451,6 +466,7 @@ function loadMapping() {
     const parsed = JSON.parse(raw);
     if (parsed && parsed.paragraph) Object.assign(base.paragraph, parsed.paragraph);
     if (parsed && parsed.character) Object.assign(base.character, parsed.character);
+    if (parsed && parsed.table) Object.assign(base.table, parsed.table);
   } catch (e) {
     /* ignore corrupt value */
   }
@@ -506,6 +522,7 @@ function normalizeMapping(p) {
   const base = emptyMapping();
   if (p && p.paragraph) Object.assign(base.paragraph, p.paragraph);
   if (p && p.character) Object.assign(base.character, p.character);
+  if (p && p.table) Object.assign(base.table, p.table);
   return base;
 }
 
@@ -552,6 +569,12 @@ const AUTO_PARA_CANDIDATES = {
   tableHeader: ["tableheader", "tablehead", "thead"],
   tableCell: ["tablecell", "tablebody", "table"],
   image: ["imagecaption", "caption", "image", "figure"]
+};
+
+const AUTO_TABLE_CANDIDATES = {
+  tableStyle: ["table", "tablestyle", "basictable"],
+  headerCell: ["headercell", "header", "tableheader", "thead", "headrow"],
+  bodyCell: ["bodycell", "tablebody", "body", "cell"]
 };
 
 const AUTO_CHAR_CANDIDATES = {
@@ -651,6 +674,24 @@ function listCharacterStyleNames() {
   return collectNames(getApp().activeDocument.allCharacterStyles);
 }
 
+function listTableStyleNames() {
+  if (!hasOpenDocument()) return [];
+  try {
+    return collectNames(getApp().activeDocument.allTableStyles);
+  } catch (e) {
+    return [];
+  }
+}
+
+function listCellStyleNames() {
+  if (!hasOpenDocument()) return [];
+  try {
+    return collectNames(getApp().activeDocument.allCellStyles);
+  } catch (e) {
+    return [];
+  }
+}
+
 function resolveByName(collection, name) {
   if (!name) return null;
   try {
@@ -670,6 +711,22 @@ function resolveParagraphStyle(doc, name) {
 
 function resolveCharacterStyle(doc, name) {
   return name ? resolveByName(doc.allCharacterStyles, name) : null;
+}
+
+function resolveTableStyle(doc, name) {
+  try {
+    return name ? resolveByName(doc.allTableStyles, name) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function resolveCellStyle(doc, name) {
+  try {
+    return name ? resolveByName(doc.allCellStyles, name) : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 /* ===================================================================== *
@@ -846,7 +903,29 @@ function insertTable(ctx, block) {
     /* best-effort sizing */
   }
 
-  // Column alignment from the delimiter row (:-- / :--: / --:).
+  // Native table/cell styles. A mapped Table Style owns the table's look —
+  // its region cascade may already carry cell styles and paragraph styles —
+  // so the per-cell paragraph fallback is suppressed unless explicitly mapped.
+  const tmap = mapping.table || {};
+  let tStyle = null;
+  try {
+    tStyle = resolveTableStyle(doc, tmap.tableStyle);
+    if (tStyle) {
+      table.appliedTableStyle = tStyle;
+      try {
+        table.clearTableStyleOverrides();
+      } catch (e) {
+        /* override clearing is best-effort */
+      }
+    }
+  } catch (e) {
+    tStyle = null;
+  }
+  const headerCellStyle = resolveCellStyle(doc, tmap.headerCell);
+  const bodyCellStyle = resolveCellStyle(doc, tmap.bodyCell);
+
+  // Column alignment from the delimiter row (:-- / :--: / --:). Applied last
+  // so the explicit Markdown request wins over the table style's defaults.
   let jmap = null;
   try {
     const J = require("indesign").Justification;
@@ -862,9 +941,25 @@ function insertTable(ctx, block) {
       try {
         const cell = table.rows.item(r).cells.item(c);
         cell.contents = cellText;
-        const key = r === 0 ? "tableHeader" : "tableCell";
-        const pStyle = resolveParagraphStyle(doc, mapping.paragraph[key] || mapping.paragraph.tableCell);
+
+        const isHeader = r === 0;
+        const cellStyle = isHeader ? headerCellStyle : bodyCellStyle;
+        if (cellStyle) {
+          cell.appliedCellStyle = cellStyle;
+          try {
+            cell.clearCellStyleOverrides();
+          } catch (e) {
+            /* best-effort */
+          }
+        }
+
+        const key = isHeader ? "tableHeader" : "tableCell";
+        // With a table style in charge, only an explicit paragraph mapping
+        // overrides the cascade; without one, keep the v1 fallback chain.
+        const pName = tStyle ? mapping.paragraph[key] : mapping.paragraph[key] || mapping.paragraph.tableCell;
+        const pStyle = resolveParagraphStyle(doc, pName);
         if (pStyle) cell.texts.item(0).appliedParagraphStyle = pStyle;
+
         const al = block.aligns && block.aligns[c];
         if (jmap && al && jmap[al]) cell.texts.item(0).justification = jmap[al];
       } catch (e) {
@@ -940,7 +1035,7 @@ function applyToDocument(blocks, mapping, options) {
  * ===================================================================== */
 
 let currentMapping = loadMapping();
-const pickerRefs = { paragraph: {}, character: {} };
+const pickerRefs = { paragraph: {}, character: {}, table: {} };
 
 function $(id) {
   return document.getElementById(id);
@@ -1125,6 +1220,8 @@ function renderSettings(mappingOverride) {
 
   let paraNames = [];
   let charNames = [];
+  let tableNames = [];
+  let cellNames = [];
   try {
     paraNames = listParagraphStyleNames();
   } catch (e) {
@@ -1135,16 +1232,30 @@ function renderSettings(mappingOverride) {
   } catch (e) {
     /* ignore */
   }
+  try {
+    tableNames = listTableStyleNames();
+  } catch (e) {
+    /* ignore */
+  }
+  try {
+    cellNames = listCellStyleNames();
+  } catch (e) {
+    /* ignore */
+  }
+  const tableNamesFor = (kind) => (kind === "table" ? tableNames : cellNames);
 
   const pl = $("para-list");
   const cl = $("char-list");
+  const tl = $("table-list");
 
-  // Clear BOTH lists up front so a later failure can never leave one list
-  // showing stale rows from a previous open.
+  // Clear lists up front so a later failure can never leave one list showing
+  // stale rows from a previous open.
   if (pl) pl.innerHTML = "";
   if (cl) cl.innerHTML = "";
+  if (tl) tl.innerHTML = "";
   pickerRefs.paragraph = {};
   pickerRefs.character = {};
+  pickerRefs.table = {};
 
   if (pl) {
     PARAGRAPH_ELEMENTS.forEach((el) => {
@@ -1159,6 +1270,15 @@ function renderSettings(mappingOverride) {
     CHARACTER_ELEMENTS.forEach((el) => {
       try {
         makePickerRow(cl, el.label, charNames, mref.character[el.key], pickerRefs.character, el.key);
+      } catch (e) {
+        /* skip a single bad row, keep the rest */
+      }
+    });
+  }
+  if (tl) {
+    TABLE_ELEMENTS.forEach((el) => {
+      try {
+        makePickerRow(tl, el.label, tableNamesFor(el.names), mref.table[el.key], pickerRefs.table, el.key);
       } catch (e) {
         /* skip a single bad row, keep the rest */
       }
@@ -1269,6 +1389,18 @@ function autoMapStyles() {
     }
   });
 
+  const tableNames = listTableStyleNames();
+  const cellNames = listCellStyleNames();
+  TABLE_ELEMENTS.forEach((el) => {
+    if (ui.table[el.key]) return;
+    const names = el.names === "table" ? tableNames : cellNames;
+    const hit = autoMatch(names, AUTO_TABLE_CANDIDATES[el.key] || []);
+    if (hit) {
+      ui.table[el.key] = hit;
+      filled += 1;
+    }
+  });
+
   renderSettings(ui); // shown but not persisted — user reviews, then saves
   setSettingsStatus(
     filled
@@ -1298,6 +1430,10 @@ function collectMappingFromUI() {
   CHARACTER_ELEMENTS.forEach((el) => {
     const picker = pickerRefs.character[el.key];
     m.character[el.key] = picker ? readPicker(picker) : currentMapping.character[el.key] || "";
+  });
+  TABLE_ELEMENTS.forEach((el) => {
+    const picker = pickerRefs.table[el.key];
+    m.table[el.key] = picker ? readPicker(picker) : (currentMapping.table && currentMapping.table[el.key]) || "";
   });
   return m;
 }

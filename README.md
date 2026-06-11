@@ -27,11 +27,18 @@ style, `##` to "Heading 2", body text to "Body", and so on. Inline formatting
   applied styles (headings, lists, blockquotes, code fences, rules, inline
   styles, and link URLs from InDesign hyperlinks) and puts it on the
   clipboard, or saves a `.md` if the clipboard is unavailable.
-- **Style Mapping window** — scope every Markdown construct to a paragraph or
-  character style from the active document. Saved between sessions.
+- **Style Mapping window** — scope every Markdown construct to a paragraph,
+  character, table, or cell style from the active document. Saved between
+  sessions.
+  - **Tables** map to a native InDesign **Table Style** plus optional header /
+    body **Cell Styles**. When a table style is mapped it owns the table's
+    look (its region cascade can carry cell and paragraph styles); the
+    table-header / table-body *paragraph* rows are used only as a fallback
+    when no table style is mapped.
   - **Auto-map** fills empty rows by fuzzy-matching the document's style
-    names (e.g. `H1`/`Heading 1` → Heading 1, `Body`/`P` → Body); it never
-    overwrites a choice you've already made — review, then Save mapping.
+    names (e.g. `H1`/`Heading 1` → Heading 1, `Body`/`P` → Body, `Basic Table`
+    → table style); it never overwrites a choice you've already made — review,
+    then Save mapping.
   - **Presets** — save the current mapping under a name and load or delete it
     later (e.g. one preset per publication).
 - **Markdown coverage**
@@ -41,7 +48,9 @@ style, `##` to "Heading 2", body text to "Body", and so on. Inline formatting
   - Fenced code blocks, inline code
   - Bold, italic, bold-italic, strikethrough, highlight
   - Links (turned into live InDesign hyperlinks) and autolinks
-  - Tables (with header/body cell styles and column alignment)
+  - Tables — apply a native **Table Style** and header/body **Cell Styles**,
+    or fall back to paragraph styles; column alignment (`:--` / `:--:` / `--:`)
+    is honored either way
   - Horizontal rules
   - Images (rendered as a styled caption in v1 — see *Limitations*)
 

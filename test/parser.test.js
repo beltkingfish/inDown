@@ -216,4 +216,11 @@ check("listLineMarkdown strips imported literal markers", () => {
   assert.strictEqual(listLineMarkdown("unorderedList", "\t•\tnested"), "  - nested");
 });
 
+check("autoMatch finds table & cell style names", () => {
+  assert.strictEqual(autoMatch(["Basic Table", "Grid"], ["table", "tablestyle", "basictable"]), "Basic Table");
+  assert.strictEqual(autoMatch(["Header Cell", "Body Cell"], ["headercell", "header", "thead"]), "Header Cell");
+  assert.strictEqual(autoMatch(["Body Cell"], ["bodycell", "tablebody", "body", "cell"]), "Body Cell");
+  assert.strictEqual(autoMatch(["Zebra"], ["headercell", "header"]), "");
+});
+
 console.log("\nAll " + passed + " checks passed.");
