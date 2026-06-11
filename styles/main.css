@@ -1,0 +1,192 @@
+:root {
+  --gap: 12px;
+  --radius: 8px;
+  --accent: #2680eb;
+  --border: var(--uxp-host-border-color, rgba(127, 127, 127, 0.32));
+  --muted: 0.6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  font-family: "Adobe Clean", -apple-system, system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--uxp-host-text-color, #e8e8e8);
+}
+
+#app {
+  padding: var(--gap);
+}
+
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ---------------- Cards ---------------- */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--gap);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.card-title,
+.section-title {
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: var(--muted);
+}
+
+/* ---------------- Drop zone ---------------- */
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 18px 12px;
+  border: 2px dashed var(--uxp-host-border-color, #6d6d6d);
+  border-radius: var(--radius);
+  text-align: center;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.dropzone.over {
+  border-color: var(--accent);
+  background-color: rgba(38, 128, 235, 0.12);
+}
+
+.dz-icon {
+  font-size: 24px;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+.dz-title {
+  font-weight: 700;
+}
+
+.dz-sub {
+  opacity: 0.55;
+}
+
+/* ---------------- Rows / controls ---------------- */
+.btn-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.switch-label {
+  opacity: 0.9;
+}
+
+.status {
+  min-height: 16px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--uxp-host-widget-hover-background-color, rgba(127, 127, 127, 0.12));
+  word-break: break-word;
+}
+
+.status.ok {
+  color: #4bb543;
+}
+
+.status.error {
+  color: #e34850;
+}
+
+.footer {
+  display: flex;
+  justify-content: center;
+}
+
+/* ---------------- Settings ---------------- */
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.settings-title {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.hint {
+  opacity: 0.6;
+}
+
+.section-title {
+  margin-top: 4px;
+}
+
+.map-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.map-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.map-label {
+  flex: 0 0 44%;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.map-picker {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.warn {
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: rgba(227, 72, 80, 0.14);
+  color: #e34850;
+}
+
+.settings-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  padding-bottom: 6px;
+}

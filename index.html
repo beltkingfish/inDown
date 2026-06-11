@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="styles/main.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- ===================== Import view ===================== -->
+      <div id="view-import" class="view">
+        <div class="card">
+          <div class="card-title">Import a Markdown file</div>
+          <div id="dropzone" class="dropzone">
+            <div class="dz-icon">⤓</div>
+            <div class="dz-title">Drop a .md or .txt file</div>
+            <div class="dz-sub">or</div>
+            <sp-button id="btn-import" variant="cta">Import Markdown File…</sp-button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Format text typed in InDesign</div>
+          <div class="btn-row">
+            <sp-button id="btn-format" variant="primary" size="s">Format selection</sp-button>
+            <sp-button id="btn-reveal" variant="secondary" size="s">Reveal formatting</sp-button>
+          </div>
+          <div class="switch-row">
+            <sp-switch id="sw-live"></sp-switch>
+            <span class="switch-label">Live auto-format as you type</span>
+          </div>
+        </div>
+
+        <div id="status" class="status">Ready.</div>
+
+        <div class="footer">
+          <sp-button id="btn-settings" variant="secondary" quiet>Style Mapping…</sp-button>
+        </div>
+      </div>
+
+      <!-- ===================== Settings view ===================== -->
+      <div id="view-settings" class="view hidden">
+        <div class="settings-header">
+          <div class="settings-title">Style Mapping</div>
+          <sp-button id="btn-refresh" variant="secondary" quiet size="s">Refresh</sp-button>
+        </div>
+
+        <div class="hint">Match each Markdown element to a style in the active document.</div>
+        <div id="no-doc" class="warn hidden">Open a document to load its styles.</div>
+
+        <div class="section-title">Paragraph styles</div>
+        <div id="para-list" class="map-list"></div>
+
+        <div class="section-title">Character styles (inline)</div>
+        <div id="char-list" class="map-list"></div>
+
+        <div class="settings-footer">
+          <sp-button id="btn-back" variant="secondary">Back</sp-button>
+          <sp-button id="btn-save" variant="cta">Save mapping</sp-button>
+        </div>
+      </div>
+    </div>
+
+    <script src="main.js"></script>
+  </body>
+</html>
