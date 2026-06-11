@@ -8,7 +8,14 @@
  */
 
 const assert = require("assert");
-const { parseMarkdown, parseInline } = require("../main.js");
+const {
+  parseMarkdown,
+  parseInline,
+  normName,
+  autoMatch,
+  autoCandidatesForPara,
+  listLineMarkdown
+} = require("../main.js");
 
 let passed = 0;
 function check(name, fn) {
@@ -141,6 +148,72 @@ check("standalone image block", () => {
   assert.strictEqual(blocks[0].type, "image");
   assert.strictEqual(blocks[0].alt, "alt text");
   assert.strictEqual(blocks[0].url, "pic.png");
+});
+
+check("setext heading: === makes h1", () => {
+  const blocks = parseMarkdown("Title Text\n===\n\nbody");
+  assert.strictEqual(blocks[0].type, "heading");
+  assert.strictEqual(blocks[0].styleKey, "h1");
+  assert.strictEqual(blocks[0].runs.map((r) => r.text).join(""), "Title Text");
+  assert.strictEqual(blocks[1].type, "paragraph");
+});
+
+check("setext heading: --- right after text makes h2, not a rule", () => {
+  const blocks = parseMarkdown("Subtitle\n---\n\nbody");
+  assert.strictEqual(blocks[0].type, "heading");
+  assert.strictEqual(blocks[0].styleKey, "h2");
+  assert.strictEqual(blocks.some((b) => b.type === "horizontalRule"), false);
+});
+
+check("--- after a blank line is still a horizontal rule", () => {
+  const blocks = parseMarkdown("para\n\n---\n\nmore");
+  assert.strictEqual(blocks[1].type, "horizontalRule");
+});
+
+check("pipe paragraph + bare --- is not mis-read as a table", () => {
+  const blocks = parseMarkdown("either | or\n---");
+  assert.strictEqual(blocks.some((b) => b.type === "table"), false);
+  assert.strictEqual(blocks[0].type, "heading"); // setext h2
+});
+
+check("table still parses when delimiter cell count matches", () => {
+  const blocks = parseMarkdown("| A | B |\n| --- | --- |\n| 1 | 2 |");
+  assert.strictEqual(blocks[0].type, "table");
+});
+
+console.log("autoMap helpers");
+
+check("normName strips punctuation and case", () => {
+  assert.strictEqual(normName("[Basic Paragraph]"), "basicparagraph");
+  assert.strictEqual(normName("Heading 1"), "heading1");
+});
+
+check("autoMatch prefers exact normalized matches", () => {
+  const names = ["[Basic Paragraph]", "H1", "Body Copy", "Subtitle"];
+  const h1 = autoCandidatesForPara("h1");
+  assert.strictEqual(autoMatch(names, h1.candidates, h1.exactExtras), "H1");
+});
+
+check("autoMatch: 'title' extra never substring-matches Subtitle", () => {
+  const h1 = autoCandidatesForPara("h1");
+  assert.strictEqual(autoMatch(["Subtitle"], h1.candidates, h1.exactExtras), "");
+  assert.strictEqual(autoMatch(["Title"], h1.candidates, h1.exactExtras), "Title");
+});
+
+check("autoMatch falls back to substring on longer candidates", () => {
+  const spec = autoCandidatesForPara("unorderedList");
+  assert.strictEqual(autoMatch(["My Bullet List"], spec.candidates, spec.exactExtras), "My Bullet List");
+});
+
+check("autoMatch returns empty string when nothing fits", () => {
+  assert.strictEqual(autoMatch(["Zzz"], ["bold", "strong"]), "");
+});
+
+check("listLineMarkdown strips imported literal markers", () => {
+  assert.strictEqual(listLineMarkdown("unorderedList", "•\titem"), "- item");
+  assert.strictEqual(listLineMarkdown("orderedList", "3.\tthird"), "3. third");
+  assert.strictEqual(listLineMarkdown("taskList", "☑\tdone"), "- [x] done");
+  assert.strictEqual(listLineMarkdown("unorderedList", "\t•\tnested"), "  - nested");
 });
 
 console.log("\nAll " + passed + " checks passed.");

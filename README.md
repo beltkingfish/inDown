@@ -15,15 +15,33 @@ style, `##` to "Heading 2", body text to "Body", and so on. Inline formatting
 - **Two ways to import**
   - Drag a `.md` / `.txt` file onto the inDown panel's drop zone.
   - Click **Import Markdown File…** (a file picker, works like Place).
-- **Style mapping window** — scope every Markdown construct to a paragraph or
+- **Format Markdown you type in InDesign**
+  - **Format selection** — converts Markdown already typed in the current
+    story, in place (strips the syntax, applies your mapped styles).
+  - **Live auto-format** — a toggle that does the same automatically on an
+    idle timer (~1.2 s) while you type. Pressing Return after a heading drops
+    the new line back to your Body style.
+  - **Reveal formatting** — shows the Markdown syntax again, in light blue,
+    reconstructed from the applied styles; toggle off to remove it.
+- **Export** — **Copy story as Markdown** reconstructs Markdown from the
+  applied styles (headings, lists, blockquotes, code fences, rules, inline
+  styles, and link URLs from InDesign hyperlinks) and puts it on the
+  clipboard, or saves a `.md` if the clipboard is unavailable.
+- **Style Mapping window** — scope every Markdown construct to a paragraph or
   character style from the active document. Saved between sessions.
+  - **Auto-map** fills empty rows by fuzzy-matching the document's style
+    names (e.g. `H1`/`Heading 1` → Heading 1, `Body`/`P` → Body); it never
+    overwrites a choice you've already made — review, then Save mapping.
+  - **Presets** — save the current mapping under a name and load or delete it
+    later (e.g. one preset per publication).
 - **Markdown coverage**
-  - Headings `#`–`######`, paragraphs, blockquotes
+  - Headings `#`–`######`, plus setext (`===` / `---` underlines)
+  - Paragraphs, blockquotes
   - Bulleted / numbered / task lists
   - Fenced code blocks, inline code
   - Bold, italic, bold-italic, strikethrough, highlight
   - Links (turned into live InDesign hyperlinks) and autolinks
-  - Tables (with header/body cell styles)
+  - Tables (with header/body cell styles and column alignment)
   - Horizontal rules
   - Images (rendered as a styled caption in v1 — see *Limitations*)
 
@@ -39,16 +57,36 @@ To package for distribution, use UDT's **Package** action to produce a `.ccx`.
 ## Usage
 
 1. Open the document whose styles you want to target.
-2. Open the inDown panel and click **Configure styles…**.
+2. Open the inDown panel and click **Style Mapping…**.
 3. For each Markdown construct, pick a paragraph or character style (or leave it
    as *(None)* to keep InDesign's default). Click **Refresh** if you add styles
    while the panel is open. Click **Save mapping**.
 4. Back on the main view, drop a `.md` file onto the panel — or click **Import
    Markdown File…**.
+5. To format Markdown you type directly: click in the text frame and press
+   **Format selection**, or flip on **Live auto-format**. **Reveal formatting**
+   shows the syntax again in blue; click it again to hide. (Turn Reveal off
+   before formatting — the two are mutually exclusive.)
 
 **Where the text lands:** if a text frame (or a text selection) is selected,
 content is appended to that story. Otherwise inDown creates a new text frame on
 the active page, inset to the page margins.
+
+**Notes on typed-text formatting:** only constructs you've mapped are
+converted; unmapped Markdown is left as literal text. Map **Body / paragraph**
+so that pressing Return after a heading resets the new line to Body. Reveal
+reconstructs headings, lists, blockquotes, and inline bold/italic/code/
+strikethrough/highlight; it does not rebuild link URLs, code fences, tables,
+or rules.
+
+**Performance:** imports and Format selection run as a single named undo step
+(one Cmd+Z reverts the whole import, and InDesign batches recomposition). The
+live formatter skips ticks when nothing changed and restricts its work to the
+paragraph being typed plus its predecessor, so it stays fast in long stories.
+
+**Export notes:** export is driven by the same style mapping (only mapped
+styles round-trip). Tables and placed images are not exported in this
+version, and consecutive code-block paragraphs export as one fenced block.
 
 ## Limitations (and why)
 
@@ -65,7 +103,7 @@ actual image placement is planned for a future release.
 ## Project layout
 
 ```
-manifest.json            UXP manifest (host "ID", panel + flyout, permissions)
+manifest.json            UXP manifest (host "ID", panel entrypoint, permissions)
 index.html               Panel markup (import view + settings view)
 styles/main.css          Panel styling
 main.js                  Whole plugin: parser, style mapping, importer, panel UI
