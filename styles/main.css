@@ -184,12 +184,9 @@ body {
 }
 
 .settings-footer {
-  position: sticky;
-  bottom: 0;
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  margin-top: 6px;
-  padding: 10px 0 2px;
-  background: var(--uxp-host-background-color, #323232);
+  margin-top: 10px;
+  padding-bottom: 6px;
 }
